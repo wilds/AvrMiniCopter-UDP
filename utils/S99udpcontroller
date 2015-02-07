@@ -1,0 +1,7 @@
+#!/bin/sh
+if [ "$1" == "start"  ]; then
+
+/usr/local/bin/udpcontroller.sh &
+
+fi
+exit 0;
