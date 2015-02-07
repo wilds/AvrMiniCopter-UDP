@@ -89,6 +89,8 @@ int logmode = 0;
 #define STREAM_CMD "/usr/local/bin/camera_streamer.sh"
 #define CAMERA_CMD "/usr/local/bin/camera.sh"
 
+#define FIXED_HEIGHT 240
+
 int sendMsg(int t, int v) {
     static unsigned char buf[4];
     static struct local_msg m;
@@ -169,10 +171,13 @@ const char * handle_packet(char * data, sockaddr_in remoteAddr) {
         // TODO handle resolution tokens[4] x tokens[5]
 
         char *ip = inet_ntoa(remoteAddr.sin_addr);
+        float aspectratio = atof(tokens[4]) / atof(tokens[5]);
+        int height = FIXED_HEIGHT;
+        int width = (aspectratio * height);
 
         char cmd[256];
         memset(cmd, '\0', 256);
-        sprintf(cmd, "%s %s %s %s", STREAM_CMD, tokens[2], ip, tokens[3]);
+        sprintf(cmd, "%s %s %s %s %i %i", STREAM_CMD, tokens[2], ip, tokens[3], width, height);
         if (verbose) printf("Executing: %s\n", cmd);
         ret = system(cmd);
 
