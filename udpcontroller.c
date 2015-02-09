@@ -74,7 +74,8 @@ int ssock;
 struct sockaddr_in saddress;
 int sportno = 1032;
 char data[256];
-
+int background = 0;
+char pidfile[256] = "\0";
 int verbose = 0;
 
 int yprt[4] = {0, 0, 0, 0};
@@ -443,10 +444,12 @@ void loop() {
 }
 
 void print_usage() {
+    printf("-d - run as daemon\n");
+    printf("-i [file] - PID file\n");
     printf("-v [level] - verbose mode\n");
     printf("-a [addr] - address to connect to (defaults to 127.0.0.1)\n");
     printf("-p [port] - port to connect to (default to 1030)\n");
-    printf("-l [port] port to listen on (defaults to 1032)\n");
+    printf("-l [port] - port to listen on (defaults to 1032)\n");
 }
 
 int main(int argc, char **argv) {
@@ -456,8 +459,12 @@ int main(int argc, char **argv) {
 
     int option;
     verbose = 0;
-    while ((option = getopt(argc, argv, "v:a:p:l:")) != -1) {
+    while ((option = getopt(argc, argv, "di:v:a:p:l:")) != -1) {
         switch (option) {
+            case 'd': background = 1;
+                break;
+            case 'i': strcpy(pidfile, optarg);
+                break;
             case 'v': verbose = atoi(optarg);
                 break;
             case 'a': strcpy(sock_path, optarg);
@@ -481,12 +488,12 @@ int main(int argc, char **argv) {
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("opening socket");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     server = gethostbyname(sock_path);
     if (server == NULL) {
         fprintf(stderr, "ERROR, no such host\n");
-        return -1;
+        exit(EXIT_FAILURE);
     }
     bzero((char *) &address, sizeof (address));
     address.sin_family = AF_INET;
@@ -496,16 +503,9 @@ int main(int argc, char **argv) {
     if (connect(sock, (struct sockaddr *) &address, sizeof (struct sockaddr_in)) < 0) {
         close(sock);
         perror("connecting socket");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
-    /* set non-blocking
-       ret = fcntl(sock, F_SETFL, fcntl(sock, F_GETFL, 0) | O_NONBLOCK);
-       if (ret == -1){
-       perror("calling fcntl");
-       return -1;
-       }
-     */
     if (verbose) printf("Connected to avrspi\n");
 
     /* Create socket to listen */
@@ -514,9 +514,6 @@ int main(int argc, char **argv) {
         perror("opening server socket");
         exit(EXIT_FAILURE);
     }
-
-    //int optval = 1;
-    //setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
 
     bzero((char *) &saddress, sizeof (saddress));
     saddress.sin_family = AF_INET;
@@ -539,17 +536,36 @@ int main(int argc, char **argv) {
     // set log mode to gyro+altitude for send info to controller
     sendMsg(COMMAND_SET_LOG_MODE, PARAMETER_LOG_MODE_GYRO_AND_ALTITUDE);
 
+    if (verbose)
+        printf("Opening config: %s\n", CFG_PATH);
     ret = udpconfig_open(&config, CFG_PATH);
     if (ret < 0) {
-            printf("Failed to initiate config! [%s]\n", strerror(ret));
-            return -1;
+        printf("Failed to initiate config! [%s]\n", strerror(ret));
+        exit(EXIT_FAILURE);
     }
     //flight_threshold = config.throttle[MIN]+50;
+
+    if (background) {
+        if (daemon(0, 0) < 0) {
+            exit(EXIT_FAILURE);
+        }
+        if (strcmp(pidfile, "") != 0) {
+            int fd = open(pidfile, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+            if (ftruncate(fd, 0) == -1)
+                printf("Could not truncate PID file '%s'", pidfile);
+
+            char buf[256];
+            snprintf(buf, 256, "%ld\n", (long) getpid());
+            if (write(fd, buf, strlen(buf)) != strlen(buf))
+                printf("Writing to PID file '%s'", pidfile);
+            close(fd);
+        }
+    }
 
     loop();
     close(sock);
     close(ssock);
     if (verbose) printf("Closing.\n");
-    return 0;
+    exit(EXIT_SUCCESS);
 }
 

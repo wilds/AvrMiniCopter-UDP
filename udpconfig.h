@@ -22,12 +22,12 @@
 
 struct udp_config {
     int throttle[2]; //t min, t_max
-    int rec_ypr[3];  //y, p, r
+    int rec_ypr[3]; //y, p, r
 };
 
 extern struct udp_config udpconfig;
 
-int udpconfig_open(struct udp_config *c,const char *path);
+int udpconfig_open(struct udp_config *c, const char *path);
 
 #endif
 
