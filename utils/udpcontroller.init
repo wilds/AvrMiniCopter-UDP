@@ -2,7 +2,7 @@
 
 ### BEGIN INIT INFO
 # Provides:          udpcontroller
-# Required-Start:    $local_fs $syslog $remote_fs $network
+# Required-Start:    avrspi
 # Required-Stop:
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
@@ -13,11 +13,9 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin/
 NAME=udpcontroller
 DESC="UDPController daemon"
 DAEMON=/usr/local/bin/udpcontroller
-#DAEMON=/usr/local/bin/udpcontroller.sh
 PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/"$NAME"
 DAEMON_OPTS="-d -i $PIDFILE > /dev/null"
-#DAEMON_OPTS=> /dev/null &
 
 test -x $DAEMON || exit 0
 test -f $DAEMON || exit 0
@@ -28,8 +26,6 @@ case "$1" in
 start)  log_daemon_msg "Starting UDP server" "$NAME"
         start_daemon -p $PIDFILE $DAEMON $DAEMON_OPTS
         log_end_msg $?
-#       PID=`ps -e | grep udpcontroller | sed -e 's/^  *//' -e 's/ .*//'`
-#        echo $PID > $PIDFILE
         ;;
 stop)   log_daemon_msg "Stopping UDP server" "$NAME"
         killproc -p $PIDFILE $DAEMON

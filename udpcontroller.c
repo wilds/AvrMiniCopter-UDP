@@ -103,12 +103,6 @@ int sendMsg(int t, int v) {
         perror("writing");
         return -1;
     }
-    /*
-            ret = sendto(sock,buf,LOCAL_MSG_SIZE,0,(struct sockaddr *)&address,sizeof(address));
-            if (ret<=0) {
-                    perror("AVRBARO: writing");
-            }
-     */
     return 0;
 }
 
@@ -169,9 +163,9 @@ const char * handle_packet(char * data, sockaddr_in remoteAddr) {
     if (strcmp(tokens[0], "hello") == 0) {
 
     } else if (strcmp(tokens[0], "stream") == 0) {
-        // TODO handle resolution tokens[4] x tokens[5]
-
         char *ip = inet_ntoa(remoteAddr.sin_addr);
+
+        // handle aspect ratio
         float aspectratio = atof(tokens[4]) / atof(tokens[5]);
         int height = FIXED_HEIGHT;
         int width = (aspectratio * height);
@@ -277,19 +271,6 @@ const char * handle_packet(char * data, sockaddr_in remoteAddr) {
         snprintf(resp, 255, "status %s %2.2f %2.2f %2.2f %i %i %i", tokens[1], avr_s[LOG_QUATERNION_YAW] / 100.0f, avr_s[LOG_QUATERNION_PITCH] / 100.0f, avr_s[LOG_QUATERNION_ROLL] / 100.0f, avr_s[LOG_ALTITUDE_HOLD_TARGET], avr_s[LOG_ALTITUDE], recording);
         return resp;
     }
-
-    /*        case 0:
-            if (js[0].yprt[3]<flight_threshold) sendMsg(0,4);
-            break;
-        case 3:
-            stop = 1;
-            break;
-        case 12:
-            if (rec_setting) rec_setting = 0;
-            else rec_setting = 1;
-            rec_config(js, config.rec_t, config.rec_ypr[rec_setting]);
-            break;
-     */
     snprintf(resp, 255, "OK %s", tokens[1]);
 
     return resp;
@@ -313,18 +294,19 @@ void recvMsgs() {
         sel = select(max_fd + 1, &fds, NULL, NULL, &timeout);
         if ((sel < 0) && (errno != EINTR)) {
             perror("select");
-            stop = 1;
-        } else if (sel && !stop && FD_ISSET(sock, &fds)) {
+            err = 1;
+        } else if (sel && !err && !stop && FD_ISSET(sock, &fds)) {
             ret = read(sock, buf + i, 4 - i);
             if (ret < 0) {
                 perror("reading");
-                stop = 1;
+                err = 1;
             } else {
                 i += ret;
                 if (i == 4) {
                     if (buf[0] == 1) {
                         if (verbose) printf("Disconnect request.\n");
-                        stop = 1;
+                        err = 1;
+                        i = 0;
                     } else {
                         m.t = buf[1];
                         m.v = unpacki16(buf + 2);
@@ -333,18 +315,7 @@ void recvMsgs() {
                     }
                 }
             }
-        } else if (sel && !stop && FD_ISSET(ssock, &fds)) {
-            /*
-            int t = accept(ssock, 0, 0);
-            if (t < 0) {
-                perror("accept");
-                continue;
-            }
-
-            if (verbose) printf("Client connected - sending data & disconnecting: %u\n", obuf_size);
-            send_msgs(t);
-            close(t);
-             */
+        } else if (sel && !err && !stop && FD_ISSET(ssock, &fds)) {
             sockaddr_in remoteAddr;
             int received_bytes = -1;
             //sockaddr_in from;
@@ -373,12 +344,12 @@ void recvMsgs() {
                 }
             }
         }
-    } while (!stop && sel && ret > 0); //no error happened; select picked up socket state change; read got some data back
+    } while (!err && !stop && sel && ret > 0); //no error happened; select picked up socket state change; read got some data back
 }
 
 void reset_avr() {
     //ensure AVR is properly rebooted
-    while (avr_s[255] != 1 && !stop) { //once rebooted AVR will report status = 1;
+    while (avr_s[255] != 1 && !stop && !err) { //once rebooted AVR will report status = 1;
         avr_s[255] = -1;
         sendMsg(COMMAND_GET, PARAMETER_GET_RESET_AVR);
         mssleep(1500);
@@ -479,17 +450,20 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (verbose)
+        printf("Opening config: %s\n", CFG_PATH);
+    ret = udpconfig_open(&config, CFG_PATH);
+    if (ret < 0) {
+        printf("Failed to initiate config! [%s]\n", strerror(ret));
+        exit(EXIT_FAILURE);
+    }
+    //flight_threshold = config.throttle[MIN]+50;
+
+    // initialize avr buffer
     for (int i = 0; i < 256; i++)
         avr_s[i] = 0;
 
-    if (verbose) printf("Opening socket...\n");
-
-    /* Create socket on which to send. */
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        perror("opening socket");
-        exit(EXIT_FAILURE);
-    }
+    // get and create address of AVRSPI
     server = gethostbyname(sock_path);
     if (server == NULL) {
         fprintf(stderr, "ERROR, no such host\n");
@@ -500,28 +474,22 @@ int main(int argc, char **argv) {
     bcopy((char *) server->h_addr, (char *) &address.sin_addr.s_addr, server->h_length);
     address.sin_port = htons(portno);
 
-    if (connect(sock, (struct sockaddr *) &address, sizeof (struct sockaddr_in)) < 0) {
-        close(sock);
-        perror("connecting socket");
-        exit(EXIT_FAILURE);
-    }
-
-    if (verbose) printf("Connected to avrspi\n");
-
-    /* Create socket to listen */
-    ssock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (ssock <= 0) {
-        perror("opening server socket");
-        exit(EXIT_FAILURE);
-    }
-
+    // create address for incoming udp connection
     bzero((char *) &saddress, sizeof (saddress));
     saddress.sin_family = AF_INET;
     saddress.sin_addr.s_addr = INADDR_ANY;
     saddress.sin_port = htons(sportno);
 
+    /* Create socket to listen */
+    ssock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (ssock < 0) {
+        perror("opening server socket");
+        exit(EXIT_FAILURE);
+    }
+
     //Binding to desired port number
     if (bind(ssock, (struct sockaddr *) &saddress, sizeof (struct sockaddr_in))) {
+        close(ssock);
         perror("binding stream socket");
         exit(EXIT_FAILURE);
     }
@@ -529,24 +497,16 @@ int main(int argc, char **argv) {
     //setting Socket to non blocking mode
     int nonBlocking = 1;
     if (fcntl(ssock, F_SETFL, O_NONBLOCK, nonBlocking) == -1) {
+        close(ssock);
         perror("failed to set non-blocking socket");
         exit(EXIT_FAILURE);
     }
 
-    // set log mode to gyro+altitude for send info to controller
-    sendMsg(COMMAND_SET_LOG_MODE, PARAMETER_LOG_MODE_GYRO_AND_ALTITUDE);
-
-    if (verbose)
-        printf("Opening config: %s\n", CFG_PATH);
-    ret = udpconfig_open(&config, CFG_PATH);
-    if (ret < 0) {
-        printf("Failed to initiate config! [%s]\n", strerror(ret));
-        exit(EXIT_FAILURE);
-    }
-    //flight_threshold = config.throttle[MIN]+50;
-
+    // run as daemon
     if (background) {
         if (daemon(0, 0) < 0) {
+            close(ssock);
+            perror("unable to start as daemon");
             exit(EXIT_FAILURE);
         }
         if (strcmp(pidfile, "") != 0) {
@@ -556,14 +516,48 @@ int main(int argc, char **argv) {
 
             char buf[256];
             snprintf(buf, 256, "%ld\n", (long) getpid());
-            if (write(fd, buf, strlen(buf)) != strlen(buf))
+            if ((size_t)write(fd, buf, strlen(buf)) != strlen(buf))
                 printf("Writing to PID file '%s'", pidfile);
             close(fd);
         }
     }
 
-    loop();
-    close(sock);
+    while (!stop) {
+        err = 0;
+        if (verbose) printf("Opening socket...\n");
+
+        /* Create socket on which to send. */
+        sock = socket(AF_INET, SOCK_STREAM, 0);
+        if (sock < 0) {
+            perror("opening socket");
+            //exit(EXIT_FAILURE);
+            err = 1;
+        }
+
+        while (!stop && connect(sock, (struct sockaddr *) &address, sizeof (struct sockaddr_in)) < 0) {
+            //close(sock);
+            perror("connecting socket");
+            sleep(2);
+            //exit(EXIT_FAILURE);
+            continue;
+        }
+
+        if (verbose) printf("Connected to avrspi\n");
+
+        // set log mode to gyro+altitude for send info to controller
+        sendMsg(COMMAND_SET_LOG_MODE, PARAMETER_LOG_MODE_GYRO_AND_ALTITUDE);
+
+        // discard all received packet until avrspi is not connected (don't flood!)
+        int udpBufSize = 0;
+        socklen_t optlen = sizeof(udpBufSize);
+        setsockopt(ssock, SOL_SOCKET, SO_RCVBUF, &udpBufSize, optlen);
+
+        loop();
+        close(sock);
+
+        if (err)
+            sleep(2);
+    }
     close(ssock);
     if (verbose) printf("Closing.\n");
     exit(EXIT_SUCCESS);
