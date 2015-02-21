@@ -25,7 +25,6 @@ install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)/usr/local/bin
 	$(INSTALL) -m 755 udpcontroller $(DESTDIR)/usr/local/bin/
 	$(INSTALL) -m 755 utils/camera.sh $(DESTDIR)/usr/local/bin/
-	$(INSTALL) -m 755 utils/camera_streamer.sh $(DESTDIR)/usr/local/bin/
 	$(INSTALL) -m 755 utils/udpcontroller.init $(DESTDIR)/etc/init.d/udpcontroller
 	$(INSTALL) -m 755 utils/udp.config $(DESTDIR)/etc/avrminicopter/
 	[ -z "$(DESTDIR)" ] && update-rc.d udpcontroller defaults || :

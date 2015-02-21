@@ -151,10 +151,10 @@
 #define LOG_QUATERNION_PITCH 5
 #define LOG_QUATERNION_ROLL 6
 #define LOG_QUATERNION_TARGET_YAW 7
-#define LOG_MOTOR_1 8
-#define LOG_MOTOR_2 9
-#define LOG_MOTOR_3 10
-#define LOG_MOTOR_4 11
+#define LOG_MOTOR_FL 8
+#define LOG_MOTOR_BL 9
+#define LOG_MOTOR_FR 10
+#define LOG_MOTOR_BR 11
 #define LOG_ACCEL_1 12
 #define LOG_ACCEL_2 13
 #define LOG_ACCEL_3 14

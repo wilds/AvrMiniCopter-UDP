@@ -87,7 +87,6 @@ int recording = 0;
 
 int logmode = 0;
 
-#define STREAM_CMD "/usr/local/bin/camera_streamer.sh"
 #define CAMERA_CMD "/usr/local/bin/camera.sh"
 
 #define FIXED_HEIGHT 240
@@ -172,7 +171,7 @@ const char * handle_packet(char * data, sockaddr_in remoteAddr) {
 
         char cmd[256];
         memset(cmd, '\0', 256);
-        sprintf(cmd, "%s %s %s %s %i %i", STREAM_CMD, tokens[2], ip, tokens[3], width, height);
+        sprintf(cmd, "%s %s %s %s %s %i %i &", CAMERA_CMD, tokens[0], tokens[2], ip, tokens[3], width, height);
         if (verbose) printf("Executing: %s\n", cmd);
         ret = system(cmd);
 
@@ -234,41 +233,41 @@ const char * handle_packet(char * data, sockaddr_in remoteAddr) {
         char timeString[128];
         timeval curTime;
         gettimeofday(&curTime, NULL);
-        strftime(timeString, 80, "%Y-%m-%d_%H:%M:%S.%f", localtime(&curTime.tv_sec));
+        strftime(timeString, 80, "%Y%m%d_%H%M%S", localtime(&curTime.tv_sec));
 
         //take picture
         char cmd[128];
         memset(cmd, '\0', 128);
-        sprintf(cmd, "%s %s %s", CAMERA_CMD, tokens[0], timeString);
+        sprintf(cmd, "%s %s %s &", CAMERA_CMD, tokens[0], timeString);
         ret = system(cmd);
     } else if (strcmp(tokens[0], "vidsnap") == 0) {
         if (strcmp(tokens[2], "record") == 0) {
             char timeString[128];
             timeval curTime;
             gettimeofday(&curTime, NULL);
-            strftime(timeString, 80, "%Y-%m-%d_%H:%M:%S.%f", localtime(&curTime.tv_sec));
+            strftime(timeString, 80, "%Y%m%d_%H%M%S", localtime(&curTime.tv_sec));
 
             char cmd[128];
             memset(cmd, '\0', 128);
-            sprintf(cmd, "%s %s %s", CAMERA_CMD, tokens[2], timeString);
+            sprintf(cmd, "%s video %s %s &", CAMERA_CMD, tokens[2], timeString);
             ret = system(cmd);
             recording = 1;
         } else if (strcmp(tokens[2], "stop") == 0) {
             char cmd[128];
             memset(cmd, '\0', 128);
-            sprintf(cmd, "%s %s", CAMERA_CMD, tokens[2]);
+            sprintf(cmd, "%s video %s &", CAMERA_CMD, tokens[2]);
             ret = system(cmd);
             recording = 0;
         } else if (strcmp(tokens[2], "pause") == 0) {
             char cmd[128];
             memset(cmd, '\0', 128);
-            sprintf(cmd, "%s %s", CAMERA_CMD, tokens[2]);
+            sprintf(cmd, "%s video %s &", CAMERA_CMD, tokens[2]);
             ret = system(cmd);
             recording = 2;
         }
     } else if (strcmp(tokens[0], "querystatus") == 0) {
         // yaw pitch roll altitudetarget altitude recording
-        snprintf(resp, 255, "status %s %2.2f %2.2f %2.2f %i %i %i", tokens[1], avr_s[LOG_QUATERNION_YAW] / 100.0f, avr_s[LOG_QUATERNION_PITCH] / 100.0f, avr_s[LOG_QUATERNION_ROLL] / 100.0f, avr_s[LOG_ALTITUDE_HOLD_TARGET], avr_s[LOG_ALTITUDE], recording);
+        snprintf(resp, 255, "status %s %2.2f %2.2f %2.2f %i %i %i %i %i %i %i", tokens[1], avr_s[LOG_QUATERNION_YAW] / 100.0f, avr_s[LOG_QUATERNION_PITCH] / 100.0f, avr_s[LOG_QUATERNION_ROLL] / 100.0f, avr_s[LOG_ALTITUDE_HOLD_TARGET], avr_s[LOG_ALTITUDE], recording, avr_s[LOG_MOTOR_FL], avr_s[LOG_MOTOR_BL], avr_s[LOG_MOTOR_BR], avr_s[LOG_MOTOR_FR]);
         return resp;
     }
     snprintf(resp, 255, "OK %s", tokens[1]);
@@ -546,6 +545,7 @@ int main(int argc, char **argv) {
 
         // set log mode to gyro+altitude for send info to controller
         sendMsg(COMMAND_SET_LOG_MODE, PARAMETER_LOG_MODE_GYRO_AND_ALTITUDE);
+        //sendMsg(COMMAND_SET_LOG_MODE, PARAMETER_LOG_MODE_QUATERNION);
 
         // discard all received packet until avrspi is not connected (don't flood!)
         int udpBufSize = 0;
