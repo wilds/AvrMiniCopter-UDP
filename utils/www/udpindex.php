@@ -20,7 +20,7 @@ session_start();
 <h1>UDPConfig</h1>
 </div>
 
-<form data-ajax="false" method="post" action="ps3save.php">
+<form data-ajax="false" method="post" action="udpsave.php">
 <div role="main" class="ui-content">
 
 <div class="ui-field-contain">

@@ -1,6 +1,6 @@
 <?php
 session_start();
-@include("../udpload.php");
+@include("udpload.php");
 
 if (isset($_GET['tag'])) {
 	$hash = $_GET['tag'];
