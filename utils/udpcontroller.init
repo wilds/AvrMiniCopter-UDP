@@ -31,6 +31,7 @@ stop)   log_daemon_msg "Stopping UDP server" "$NAME"
         killproc -p $PIDFILE $DAEMON
         RETVAL=$?
         [ $RETVAL -eq 0 ] && [ -e "$PIDFILE" ] && rm -f $PIDFILE
+        killall raspivid
         log_end_msg $RETVAL
         ;;
 restart) log_daemon_msg "Restarting UDP server" "$NAME"
