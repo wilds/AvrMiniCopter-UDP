@@ -5,7 +5,7 @@ session_start();
 ?>
 <html>
 <head>
-<title>PS3 Config</title>
+<title>UDP Config</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="stylesheet" href="../jquery/jquery.mobile-1.4.3.min.css" />
 <script src="../jquery/jquery-1.11.1.min.js"></script>
@@ -20,7 +20,7 @@ session_start();
 <h1>UDPConfig</h1>
 </div>
 
-<form data-ajax="false" method="post" action="ps3save.php">
+<form data-ajax="false" method="post" action="udpsave.php">
 <div role="main" class="ui-content">
 
 <div class="ui-field-contain">
