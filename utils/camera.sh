@@ -54,16 +54,17 @@ case "$1" in
 				w=$5
 				h=$6
 				if [ -z $w ]; then
-						w=320
+						w=640
 				fi
 				if [ -z $h ]; then
-						h=240
+						h=480
 				fi
 
 				echo "Start STREAMING"
 
-				/usr/bin/raspivid -vf -w $w -h $h -fps 10 -b 400000 -t 0 -g 20 -n -ex auto -o - | gst-launch-1.0 -v fdsrc ! h264parse ! rtph264pay config-interval=1 pt=96 ! udpsink port=$4 host=$3 &
+				/usr/bin/raspivid -vf -w $w -h $h -fps 15 -b 2500000 -t 0 -g 20 -n -ex auto -o - | gst-launch-1.0 -v fdsrc ! h264parse ! rtph264pay config-interval=10 pt=96 ! udpsink port=$4 host=$3 &
 				PID=$!
+
 				echo $PID > $PIDFile
 				echo $3 $4 $w $h > $StreamingStatusFile
 				;;
@@ -82,10 +83,19 @@ case "$1" in
 		case "$2" in
 			record)
 				pauseStreaming
+				echo $2 > $RecordStatusFile
 				if [ -z "$PID" ]; then
 					# TODO use tee in gstreamer to save to file and stream at same time
-					echo "Start RECORDING"
-					/usr/bin/raspivid -o /rpicopter/cam/video-$3.h264 -vf -hf -w $video_width -h $video_height -fps 25 -b 5000000 -t 0 --signal &
+					ts=`date +%Y%m%d_%H%M%S`
+					if [ -e "$StreamingStatusFile" ]; then
+					echo "Start RECORDING + STREAMING"
+						set -- $SS
+						/usr/bin/raspivid -vf  -w $video_width -h $video_height -fps 25 -b 2500000 -t 0 -g 60 --signal -ex sports -o - | tee /rpicopter/cam/video-$ts.h264 | gst-launch-1.0 -v fdsrc ! h264parse ! rtph264pay config-interval=10 pt=96 ! udpsink port=$2 host=$1 &
+					else
+						echo "Start RECORDING"
+						/usr/bin/raspivid -o /rpicopter/cam/video-$ts.h264 -vf -hf -w $video_width -h $video_height -fps 25 -b 5000000 -t 0 --signal &
+					fi
+
 					PID=$!
 					echo $PID > $PIDFile
 				else
@@ -93,7 +103,6 @@ case "$1" in
 					echo "Resume RECORDING"
 					toggleRecordPause
 				fi
-				echo $2 > $RecordStatusFile
 				;;
 
 			stop)
@@ -119,7 +128,8 @@ case "$1" in
 		pauseStreaming
 
 		echo "TAKEPICTURE"
-		/usr/bin/raspistill -o /rpicopter/cam/image-$2.jpg  -hf -vf -w $photo_width -h $photo_height -ex sports
+		ts=`date +%Y%m%d_%H%M%S`
+		/usr/bin/raspistill -o /rpicopter/cam/image-$ts.jpg  -hf -vf -w $photo_width -h $photo_height -ex sports
 		#sleep 2
 
 		resumeStreaming

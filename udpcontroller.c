@@ -230,26 +230,16 @@ const char * handle_packet(char * data, sockaddr_in remoteAddr) {
         sendMsg(COMMAND_TESTMOTOR_BR, atoi(tokens[5]));
 
     } else if (strcmp(tokens[0], "takepicture") == 0) {
-        char timeString[128];
-        timeval curTime;
-        gettimeofday(&curTime, NULL);
-        strftime(timeString, 80, "%Y%m%d_%H%M%S", localtime(&curTime.tv_sec));
-
         //take picture
         char cmd[128];
         memset(cmd, '\0', 128);
-        sprintf(cmd, "%s %s %s &", CAMERA_CMD, tokens[0], timeString);
+        sprintf(cmd, "%s %s &", CAMERA_CMD, tokens[0]);
         ret = system(cmd);
     } else if (strcmp(tokens[0], "vidsnap") == 0) {
         if (strcmp(tokens[2], "record") == 0) {
-            char timeString[128];
-            timeval curTime;
-            gettimeofday(&curTime, NULL);
-            strftime(timeString, 80, "%Y%m%d_%H%M%S", localtime(&curTime.tv_sec));
-
             char cmd[128];
             memset(cmd, '\0', 128);
-            sprintf(cmd, "%s video %s %s &", CAMERA_CMD, tokens[2], timeString);
+            sprintf(cmd, "%s video %s &", CAMERA_CMD, tokens[2]);
             ret = system(cmd);
             recording = 1;
         } else if (strcmp(tokens[2], "stop") == 0) {
