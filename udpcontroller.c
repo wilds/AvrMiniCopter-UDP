@@ -534,6 +534,8 @@ int main(int argc, char **argv) {
         }
 
         if (verbose) printf("Connected to avrspi\n");
+	uint8_t sock_type = 0;
+	write(sock,&sock_type,1);
 
         // set log mode to gyro+altitude for send info to controller
         sendMsg(COMMAND_SET_LOG_MODE, PARAMETER_LOG_MODE_GYRO_AND_ALTITUDE);
