@@ -25,6 +25,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -65,10 +66,9 @@ int throttle_hold = 0;
 int throttle_target = 0;
 
 int sock = 0;
-char sock_path[256] = "127.0.0.1";
-int portno = 1030;
-struct sockaddr_in address;
-struct hostent *server;
+char sock_path[256] = "/dev/avrspi";
+struct sockaddr_un address;
+int addrlen;
 
 int ssock;
 struct sockaddr_in saddress;
@@ -354,6 +354,7 @@ void catch_signal(int sig) {
 unsigned long k = 0;
 
 void loop() {
+    bool connection = true;
     clock_gettime(CLOCK_REALTIME, &t3);
     lastPacketTime = ts = t1 = t2 = t3;
     if (verbose) printf("Starting main loop...\n");
@@ -384,13 +385,19 @@ void loop() {
         dt = TimeSpecDiff(&t2, &lastPacketTime);
         dt_ms = dt->tv_sec * 1000 + dt->tv_nsec / 1000000;
         if (dt_ms > 2500) {
-            printf("lost connection\n");
-            sendMsg(COMMAND_SET_YAW, 0);
-            sendMsg(COMMAND_SET_PITCH, 0);
-            sendMsg(COMMAND_SET_ROLL, 0);
-            sendMsg(COMMAND_SET_THROTTLE, config.throttle[MIN]);
-            lastPacketTime = t2;
+	    if (connection) { //prevent sending the same messages all the time
+		    connection = false;
+		    printf("lost connection\n");
+		    throttle_hold = 0; //in case throttle hold is engaged
+		    yprt[0] = config.throttle[MIN]; //in case alt_hold is engaged
+		    sendMsg(COMMAND_SET_YAW, 0);
+		    sendMsg(COMMAND_SET_PITCH, 0);
+		    sendMsg(COMMAND_SET_ROLL, 0);
+		    sendMsg(COMMAND_SET_THROTTLE, config.throttle[MIN]);
+	    }
+            //lastPacketTime = t2;  //lastPacketTime is correctly set in handle_packet function. No need in here?
         } else {
+	    connection = true; 
             sendMsg(COMMAND_SET_YAW, yprt[0]);
             sendMsg(COMMAND_SET_PITCH, yprt[1]);
             sendMsg(COMMAND_SET_ROLL, yprt[2]);
@@ -407,8 +414,7 @@ void print_usage() {
     printf("-d - run as daemon\n");
     printf("-i [file] - PID file\n");
     printf("-v [level] - verbose mode\n");
-    printf("-a [addr] - address to connect to (defaults to 127.0.0.1)\n");
-    printf("-p [port] - port to connect to (default to 1030)\n");
+    printf("-u [socket] - socket to connect to (defaults to %s)\n",sock_path);
     printf("-l [port] - port to listen on (defaults to 1032)\n");
 }
 
@@ -419,7 +425,7 @@ int main(int argc, char **argv) {
 
     int option;
     verbose = 0;
-    while ((option = getopt(argc, argv, "di:v:a:p:l:")) != -1) {
+    while ((option = getopt(argc, argv, "di:v:u:l:")) != -1) {
         switch (option) {
             case 'd': background = 1;
                 break;
@@ -427,9 +433,7 @@ int main(int argc, char **argv) {
                 break;
             case 'v': verbose = atoi(optarg);
                 break;
-            case 'a': strcpy(sock_path, optarg);
-                break;
-            case 'p': portno = atoi(optarg);
+            case 'u': strcpy(sock_path, optarg);
                 break;
             case 'l': sportno = atoi(optarg);
                 break;
@@ -453,15 +457,10 @@ int main(int argc, char **argv) {
         avr_s[i] = 0;
 
     // get and create address of AVRSPI
-    server = gethostbyname(sock_path);
-    if (server == NULL) {
-        fprintf(stderr, "ERROR, no such host\n");
-        exit(EXIT_FAILURE);
-    }
-    bzero((char *) &address, sizeof (address));
-    address.sin_family = AF_INET;
-    bcopy((char *) server->h_addr, (char *) &address.sin_addr.s_addr, server->h_length);
-    address.sin_port = htons(portno);
+    bzero((char *) &address, sizeof(address));
+    address.sun_family = AF_UNIX;
+    strcpy(address.sun_path, sock_path);
+    addrlen = strlen(address.sun_path) + sizeof(address.sun_family);
 
     // create address for incoming udp connection
     bzero((char *) &saddress, sizeof (saddress));
@@ -516,14 +515,14 @@ int main(int argc, char **argv) {
         if (verbose) printf("Opening socket...\n");
 
         /* Create socket on which to send. */
-        sock = socket(AF_INET, SOCK_STREAM, 0);
+        sock = socket(AF_UNIX, SOCK_STREAM, 0);
         if (sock < 0) {
             perror("opening socket");
             //exit(EXIT_FAILURE);
             err = 1;
         }
 
-        while (!stop && connect(sock, (struct sockaddr *) &address, sizeof (struct sockaddr_in)) < 0) {
+        while (!stop && connect(sock, (struct sockaddr *) &address, addrlen) < 0) {
             //close(sock);
             perror("connecting socket");
             sleep(2);
@@ -532,6 +531,8 @@ int main(int argc, char **argv) {
         }
 
         if (verbose) printf("Connected to avrspi\n");
+	uint8_t sock_type = 0;
+	write(sock,&sock_type,1);
 
         // set log mode to gyro+altitude for send info to controller
         sendMsg(COMMAND_SET_LOG_MODE, PARAMETER_LOG_MODE_GYRO_AND_ALTITUDE);
