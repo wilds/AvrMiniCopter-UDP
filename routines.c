@@ -45,13 +45,14 @@ void local2avr(struct local_msg *lm, struct avr_msg *am) {
 }
 
 void avr2local(struct avr_msg *am, struct local_msg *lm) {
+        lm->c = 0;
         lm->t = am->t;
         lm->v = am->v;
 }
 
 void pack_lm(unsigned char *buf,struct local_msg *m) {
-	buf[0] = m->c;	
-	buf[1] = m->t;	
+	buf[0] = m->c;
+	buf[1] = m->t;
 	packi16(buf+2,m->v);
 }
 
