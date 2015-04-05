@@ -336,16 +336,6 @@ void recvMsgs() {
     } while (!err && !stop && sel && ret > 0); //no error happened; select picked up socket state change; read got some data back
 }
 
-void reset_avr() {
-    //ensure AVR is properly rebooted
-    while (avr_s[255] != 1 && !stop && !err) { //once rebooted AVR will report status = 1;
-        avr_s[255] = -1;
-        sendMsg(COMMAND_GET, PARAMETER_GET_RESET_AVR);
-        mssleep(1500);
-        recvMsgs();
-    }
-}
-
 void catch_signal(int sig) {
     printf("signal: %i\n", sig);
     stop = 1;
@@ -528,6 +518,10 @@ int main(int argc, char **argv) {
         // AVRSPI sync
         uint8_t sock_type = 0;
         write(sock, &sock_type, 1);
+
+        //while (!stop && avr_s[255] < STATUS_ARM_MOTORS) {
+        //    sleep(1);
+        //}
 
         // set log mode to gyro+altitude for send info to controller
         sendMsg(COMMAND_SET_LOG_MODE, PARAMETER_LOG_MODE_GYRO_AND_ALTITUDE);
