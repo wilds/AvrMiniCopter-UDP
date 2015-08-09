@@ -344,6 +344,7 @@ void catch_signal(int sig) {
 unsigned long k = 0;
 
 void loop() {
+    bool connection = true;
     clock_gettime(CLOCK_REALTIME, &t3);
     lastPacketTime = ts = t1 = t2 = t3;
     if (verbose) printf("Starting main loop...\n");
@@ -374,13 +375,19 @@ void loop() {
         dt = TimeSpecDiff(&t2, &lastPacketTime);
         dt_ms = dt->tv_sec * 1000 + dt->tv_nsec / 1000000;
         if (dt_ms > 2500) {
-            printf("lost connection\n");
-            sendMsg(COMMAND_SET_YAW, 0);
-            sendMsg(COMMAND_SET_PITCH, 0);
-            sendMsg(COMMAND_SET_ROLL, 0);
-            sendMsg(COMMAND_SET_THROTTLE, config.throttle[MIN]);
-            lastPacketTime = t2;
+            if (connection) { //prevent sending the same messages all the time
+                connection = false;
+                printf("lost connection\n");
+                throttle_hold = 0; //in case throttle hold is engaged
+                yprt[0] = config.throttle[MIN]; //in case alt_hold is engaged
+                sendMsg(COMMAND_SET_YAW, 0);
+                sendMsg(COMMAND_SET_PITCH, 0);
+                sendMsg(COMMAND_SET_ROLL, 0);
+                sendMsg(COMMAND_SET_THROTTLE, config.throttle[MIN]);
+                //lastPacketTime = t2;  //lastPacketTime is correctly set in handle_packet function. No need in here?
+            }
         } else {
+            connection = true;
             sendMsg(COMMAND_SET_YAW, yprt[0]);
             sendMsg(COMMAND_SET_PITCH, yprt[1]);
             sendMsg(COMMAND_SET_ROLL, yprt[2]);
