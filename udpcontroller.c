@@ -221,7 +221,7 @@ const char * handle_packet(char * data, sockaddr_in remoteAddr) {
         if (tokens[1][0] == '+' || tokens[1][0] == '-')
             sendMsg(COMMAND_INCREMENT_ALTITUDE_TARGET, atoi(tokens[1]));
         else
-            sendMsg(COMMAND_SET_ALTITUDE_TARGET, atoi(tokens[1]));
+            snprintf(resp, 255, "KO %s", tokens[1]); //sendMsg(COMMAND_SET_ALTITUDE_TARGET, atoi(tokens[1]));
 
     } else if (strcmp(tokens[0], "tm") == 0) {
         sendMsg(COMMAND_TESTMOTOR_FL, atoi(tokens[2]));
@@ -524,7 +524,7 @@ int main(int argc, char **argv) {
         //}
 
         // set log mode to gyro+altitude for send info to controller
-        sendMsg(COMMAND_SET_LOG_MODE, PARAMETER_LOG_MODE_GYRO_AND_ALTITUDE);
+        sendMsg(COMMAND_SET_LOG_MODE, PARAMETER_LOG_MODE_QUATERNION_AND_ALTITUDE);
         //sendMsg(COMMAND_SET_LOG_MODE, PARAMETER_LOG_MODE_QUATERNION);
 
         // discard all received packet until avrspi is not connected (don't flood!)
